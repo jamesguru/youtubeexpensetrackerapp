@@ -1,11 +1,23 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FaTrash, FaEdit, FaWindowClose } from "react-icons/fa";
 import { PieChart } from "@mui/x-charts/PieChart";
+import { publicRequest } from "./requestMethods";
 
 function App() {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
+  const [label, setLabel] = useState("");
+  const [amount, setAmount] = useState(0);
+  const [date, setDate] = useState("");
+  const [expenses, setExpenses] = useState([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredExpenses, setFilteredExpenses] = useState([]);
+  const [totalAmount, setTotalAmount] = useState(0);
+  const [updatedId, setUpdatedID] = useState("");
+  const [updatedLabel, setUpdatedLabel] = useState("");
+  const [updatedAmount, setUpdatedAmount] = useState("");
+  const [updatedDate, setUpdatedDate] = useState("");
 
   const handleAddExpense = () => {
     setShowAddExpense(!showAddExpense);
@@ -15,8 +27,70 @@ function App() {
     setShowReport(!showReport);
   };
 
-  const handleShowEdit = () => {
+  const handleShowEdit = (id) => {
     setShowEdit(!showEdit);
+    setUpdatedID(id);
+  };
+
+  const handleUpdateExpense = async () => {
+    if (updatedId) {
+      try {
+        await publicRequest.put(`/expenses/${updatedId}`, {
+          value: updatedAmount,
+          label: updatedLabel,
+          date: updatedDate,
+        });
+        window.location.reload();
+      } catch (error) {
+        console.log(error);
+      }
+    }
+  };
+
+  const handleExpense = async () => {
+    try {
+      await publicRequest.post("/expenses", {
+        label,
+        date,
+        value: amount,
+      });
+      window.location.reload();
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  useEffect(() => {
+    const getExpenses = async () => {
+      try {
+        const res = await publicRequest.get("/expenses");
+        setExpenses(res.data);
+        setFilteredExpenses(res.data);
+        const total = res.data.reduce((acc, expense) => acc + expense.value, 0);
+        setTotalAmount(total);
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    getExpenses();
+  }, []);
+
+  const handleDelete = async (id) => {
+    try {
+      await publicRequest.delete(`/expenses/${id}`);
+      window.location.reload();
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const handleSearch = (e) => {
+    setSearchTerm(e.target.value);
+    const filtered = expenses.filter((expense) =>
+      expense.label.toLowerCase().includes(e.target.value.toLowerCase())
+    );
+    setFilteredExpenses(filtered);
   };
 
   return (
@@ -53,6 +127,7 @@ function App() {
                 type="text"
                 placeholder="Snacks"
                 className="outline-none border-2 border-[#555] border-solid p-[10px]"
+                onChange={(e) => setLabel(e.target.value)}
               />
               <label htmlFor="" className="mt-[10px] font-semibold text-[18px]">
                 Expense Date
@@ -61,6 +136,7 @@ function App() {
                 type="date"
                 placeholder="20/05/2024"
                 className="outline-none border-2 border-[#555] border-solid p-[10px]"
+                onChange={(e) => setDate(e.target.value)}
               />
               <label htmlFor="" className="mt-[10px] font-semibold text-[18px]">
                 Expense Amount
@@ -69,9 +145,13 @@ function App() {
                 type="Number"
                 placeholder="50"
                 className="outline-none border-2 border-[#555] border-solid p-[10px]"
+                onChange={(e) => setAmount(e.target.value)}
               />
 
-              <button className="bg-[#af8978] text-white p-[10px] border-none cursor-pointer my-[10px]">
+              <button
+                className="bg-[#af8978] text-white p-[10px] border-none cursor-pointer my-[10px]"
+                onClick={handleExpense}
+              >
                 Add Expense
               </button>
             </div>
@@ -83,15 +163,10 @@ function App() {
                 className="flex justify-end items-end text-2xl text-red-500 cursor-pointer"
                 onClick={handleShowReport}
               />
-
               <PieChart
                 series={[
                   {
-                    data: [
-                      { id: 0, value: 10, label: "series A" },
-                      { id: 1, value: 15, label: "series B" },
-                      { id: 2, value: 20, label: "series C" },
-                    ],
+                    data: expenses,
                     innerRadius: 30,
                     outerRadius: 100,
                     paddingAngle: 5,
@@ -103,6 +178,9 @@ function App() {
                   },
                 ]}
               />
+              <div className="text-center mt-4 text-lg font-semibold">
+                Total Expenses: ${totalAmount}
+              </div>
             </div>
           )}
           <div>
@@ -110,58 +188,37 @@ function App() {
               type="text"
               placeholder="Search"
               className="p-[10px] w-[150px] border-2 border-[#444] border-solid"
+              value={searchTerm}
+              onChange={handleSearch}
             />
           </div>
         </div>
 
         <div className="flex flex-col">
-          <div className="relative flex justify-between items-center w-[80vw] h-[100px] bg-[#f3edeb] my-[20px] py-[10px]">
-            <h2 className="m-[20px] text-[#555] text-[18px] font-medium">
-              Snacks
-            </h2>
-            <span className="m-[20px] text-[18px]">20/05/2024</span>
-            <span className="m-[20px] text-[18px] font-medium">$ 20 </span>
-            <div className="m-[20px]">
-              <FaTrash className="text-red-500 mb-[5px] cursor-pointer" />
-              <FaEdit
-                className="text-[#555] mb-[5px] cursor-pointer"
-                onClick={handleShowEdit}
-              />
+          {filteredExpenses.map((item, index) => (
+            <div
+              className="relative flex justify-between items-center w-[80vw] h-[100px] bg-[#f3edeb] my-[20px] py-[10px]"
+              key={index}
+            >
+              <h2 className="m-[20px] text-[#555] text-[18px] font-medium">
+                {item.label}
+              </h2>
+              <span className="m-[20px] text-[18px]">{item.date}</span>
+              <span className="m-[20px] text-[18px] font-medium">
+                $ {item.value}
+              </span>
+              <div className="m-[20px]">
+                <FaTrash
+                  className="text-red-500 mb-[5px] cursor-pointer"
+                  onClick={() => handleDelete(item._id)}
+                />
+                <FaEdit
+                  className="text-[#555] mb-[5px] cursor-pointer"
+                  onClick={() => handleShowEdit(item._id)}
+                />
+              </div>
             </div>
-          </div>
-          <div className="relative flex justify-between items-center w-[80vw] h-[100px] bg-[#f3edeb] my-[20px] py-[10px]">
-            <h2 className="m-[20px] text-[#555] text-[18px] font-medium">
-              Fuel
-            </h2>
-            <span className="m-[20px] text-[18px]">10/05/2024</span>
-            <span className="m-[20px] text-[18px] font-medium">$ 200 </span>
-            <div className="m-[20px]">
-              <FaTrash className="text-red-500 mb-[5px] cursor-pointer" />
-              <FaEdit className="text-[#555] mb-[5px] cursor-pointer" />
-            </div>
-          </div>
-          <div className="relative flex justify-between items-center w-[80vw] h-[100px] bg-[#f3edeb] my-[20px] py-[10px]">
-            <h2 className="m-[20px] text-[#555] text-[18px] font-medium">
-              Internet Bill
-            </h2>
-            <span className="m-[20px] text-[18px]">06/05/2024</span>
-            <span className="m-[20px] text-[18px] font-medium">$50 </span>
-            <div className="m-[20px]">
-              <FaTrash className="text-red-500 mb-[5px] cursor-pointer" />
-              <FaEdit className="text-[#555] mb-[5px] cursor-pointer" />
-            </div>
-          </div>
-          <div className="relative flex justify-between items-center w-[80vw] h-[100px] bg-[#f3edeb] my-[20px] py-[10px]">
-            <h2 className="m-[20px] text-[#555] text-[18px] font-medium">
-              Electricity Bill
-            </h2>
-            <span className="m-[20px] text-[18px]">18/05/2024</span>
-            <span className="m-[20px] text-[18px] font-medium">$ 200 </span>
-            <div className="m-[20px]">
-              <FaTrash className="text-red-500 mb-[5px] cursor-pointer" />
-              <FaEdit className="text-[#555] mb-[5px] cursor-pointer" />
-            </div>
-          </div>
+          ))}
         </div>
 
         {showEdit && (
@@ -177,6 +234,7 @@ function App() {
               type="text"
               placeholder="Snacks"
               className="outline-none border-2 border-[#555] border-solid p-[10px]"
+              onChange={(e) => setUpdatedLabel(e.target.value)}
             />
             <label htmlFor="" className="mt-[10px] font-semibold text-[18px]">
               Expense Date
@@ -185,6 +243,7 @@ function App() {
               type="date"
               placeholder="20/05/2024"
               className="outline-none border-2 border-[#555] border-solid p-[10px]"
+              onChange={(e) => setUpdatedDate(e.target.value)}
             />
             <label htmlFor="" className="mt-[10px] font-semibold text-[18px]">
               Expense Amount
@@ -193,9 +252,13 @@ function App() {
               type="Number"
               placeholder="50"
               className="outline-none border-2 border-[#555] border-solid p-[10px]"
+              onChange={(e) => setUpdatedAmount(e.target.value)}
             />
 
-            <button className="bg-[#af8978] text-white p-[10px] border-none cursor-pointer my-[10px]">
+            <button
+              className="bg-[#af8978] text-white p-[10px] border-none cursor-pointer my-[10px]"
+              onClick={handleUpdateExpense}
+            >
               Update Expense
             </button>
           </div>
